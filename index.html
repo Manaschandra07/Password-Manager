@@ -1,476 +1,1354 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Manager</title>
-    
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon.jpg">
-    <meta name="theme-color" content="#0D1B2A">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Password Manager</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Password Manager">
+<meta name="theme-color" content="#070D1A">
+<link rel="manifest" id="pwa-manifest">
+<link rel="apple-touch-icon" id="ati">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#070D1A;--sf:#0D1B2A;--sf2:#0F2440;--sf3:#142D50;
+  --bd:rgba(0,119,255,.18);--bdh:rgba(0,212,255,.4);
+  --pri:#0077FF;--acc:#00D4FF;--acc2:rgba(0,212,255,.12);
+  --tx:#E8F4FD;--txm:#5A8AB0;--txd:#2A4D6E;
+  --ok:#00FF88;--warn:#FFB800;--err:#FF3B5C;
+  --fd:'Orbitron',monospace;--fb:'Exo 2',sans-serif;
+  --r:14px;--rs:9px;
+  --gs:0 0 24px rgba(0,119,255,.28);--ga:0 0 24px rgba(0,212,255,.25);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--tx);font-family:var(--fb);position:relative;}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,119,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,119,255,.025) 1px,transparent 1px);
+  background-size:44px 44px;pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;top:-300px;right:-200px;width:700px;height:700px;
+  background:radial-gradient(circle,rgba(0,119,255,.07) 0%,transparent 65%);
+  pointer-events:none;z-index:0;}
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+/* ── SCREENS ── */
+.scr{position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;z-index:1;display:none;}
+.scr.on{display:flex;flex-direction:column;}
 
-    <style>
-        :root {
-            --bg-dark: #0D1B2A;
-            --card-border: #023E8A;
-            --accent: #1E6091;
-            --text-main: #FFFFFF;
-            --text-muted: #8E9BAE;
-        }
+/* ── AUTH SCREEN (setup / lock / pin flows) ── */
+#s-auth{align-items:center;justify-content:center;padding:24px 20px;}
+.auth-top{display:flex;flex-direction:column;align-items:center;margin-bottom:32px;}
+.auth-logo{width:76px;height:76px;border-radius:18px;
+  box-shadow:var(--gs),0 0 60px rgba(0,212,255,.15);margin-bottom:14px;}
+.auth-title{font-family:var(--fd);font-size:20px;font-weight:700;letter-spacing:2.5px;
+  color:var(--acc);text-shadow:var(--ga);text-align:center;}
+.auth-sub{font-size:12px;color:var(--txm);letter-spacing:.8px;margin-top:4px;text-align:center;}
+.pin-card{background:var(--sf);border:1px solid var(--bd);border-radius:20px;
+  padding:28px 24px 24px;width:100%;max-width:350px;
+  box-shadow:var(--gs),0 20px 60px rgba(0,0,0,.5);}
+.pin-label{font-family:var(--fd);font-size:11px;letter-spacing:2px;color:var(--txm);
+  text-align:center;margin-bottom:20px;text-transform:uppercase;}
+.pin-dots{display:flex;gap:14px;justify-content:center;margin-bottom:24px;}
+.pd{width:14px;height:14px;border-radius:50%;border:2px solid var(--bdh);transition:.2s;}
+.pd.on{background:var(--acc);border-color:var(--acc);box-shadow:0 0 12px rgba(0,212,255,.7);}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.pk{aspect-ratio:1;background:var(--sf2);border:1px solid var(--bd);border-radius:var(--rs);
+  color:var(--tx);font-family:var(--fd);font-size:20px;font-weight:600;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:.15s;user-select:none;}
+.pk:active,.pk:hover{background:var(--sf3);border-color:var(--acc);color:var(--acc);box-shadow:var(--ga);}
+.pk.del{font-size:15px;color:var(--txm);}
+.pk.del:hover{border-color:var(--err);color:var(--err);box-shadow:none;background:rgba(255,59,92,.08);}
+.pk.ghost{pointer-events:none;opacity:0;}
+.pin-msg{font-size:12px;text-align:center;margin-top:10px;min-height:17px;letter-spacing:.3px;}
+.pin-msg.err{color:var(--err);}
+.pin-msg.ok{color:var(--ok);}
+.pin-msg.info{color:var(--txm);}
+.pin-link{font-size:12px;color:var(--txm);text-align:center;margin-top:16px;
+  cursor:pointer;text-decoration:underline;letter-spacing:.3px;}
+.pin-link:hover{color:var(--acc);}
+.auth-back{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txm);
+  cursor:pointer;margin-bottom:20px;align-self:flex-start;}
+.auth-back:hover{color:var(--acc);}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+.shake{animation:shake .35s ease;}
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+/* ── SECURITY Q&A SCREEN ── */
+#s-qa{align-items:center;justify-content:center;padding:24px 20px;}
+.qa-card{background:var(--sf);border:1px solid var(--bd);border-radius:20px;
+  padding:28px 24px;width:100%;max-width:400px;
+  box-shadow:var(--gs),0 20px 60px rgba(0,0,0,.5);}
+.qa-title{font-family:var(--fd);font-size:13px;letter-spacing:1.5px;color:var(--acc);
+  text-align:center;margin-bottom:6px;text-transform:uppercase;}
+.qa-sub{font-size:12px;color:var(--txm);text-align:center;margin-bottom:24px;line-height:1.5;}
+.step-dots{display:flex;gap:7px;justify-content:center;margin-bottom:24px;}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--sf3);transition:.2s;}
+.sdot.on{background:var(--acc);box-shadow:0 0 8px rgba(0,212,255,.6);}
 
-        body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow-x: hidden;
-        }
+/* ── FORGOT PIN SCREEN ── */
+#s-forgot{align-items:center;justify-content:center;padding:24px 20px;}
+.fg-card{background:var(--sf);border:1px solid var(--bd);border-radius:20px;
+  padding:28px 24px;width:100%;max-width:400px;
+  box-shadow:var(--gs),0 20px 60px rgba(0,0,0,.5);}
+.fg-title{font-family:var(--fd);font-size:13px;letter-spacing:1.5px;color:var(--warn);
+  text-align:center;margin-bottom:6px;text-transform:uppercase;}
+.fg-sub{font-size:12px;color:var(--txm);text-align:center;margin-bottom:22px;line-height:1.5;}
+.question-box{background:var(--sf2);border:1px solid var(--bd);border-radius:var(--rs);
+  padding:14px 16px;margin-bottom:18px;font-size:14px;color:var(--tx);line-height:1.5;
+  font-style:italic;}
 
-        .glass-panel {
-            background: rgba(2, 62, 138, 0.1);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(2, 62, 138, 0.4);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-            border-radius: 12px;
-        }
+/* ── MAIN SCREEN ── */
+#s-main{flex-direction:column;overflow:hidden;}
+.hdr{background:rgba(7,13,26,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--bd);padding:12px 16px;flex-shrink:0;position:relative;z-index:10;}
+.hdr-row{display:flex;align-items:center;justify-content:space-between;max-width:640px;margin:0 auto;}
+.hdr-left{display:flex;align-items:center;gap:9px;}
+.hdr-logo{width:30px;height:30px;border-radius:8px;}
+.hdr-title{font-family:var(--fd);font-size:12px;font-weight:700;letter-spacing:1.5px;
+  color:var(--acc);text-shadow:0 0 12px rgba(0,212,255,.4);}
+.hdr-right{display:flex;align-items:center;gap:8px;}
+.sync-chip{font-size:10px;padding:3px 9px;border-radius:10px;letter-spacing:.7px;
+  border:1px solid var(--txd);color:var(--txd);}
+.sync-chip.cloud{border-color:var(--ok);color:var(--ok);}
+.icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--bd);
+  background:transparent;color:var(--txm);cursor:pointer;display:flex;
+  align-items:center;justify-content:center;transition:.15s;}
+.icon-btn:hover{border-color:var(--bdh);color:var(--acc);background:var(--acc2);}
+.uavatar{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--acc);
+  cursor:pointer;object-fit:cover;}
 
-        .glow-border {
-            border: 1px solid var(--accent);
-            box-shadow: 0 0 10px rgba(30, 96, 145, 0.3);
-        }
+.main-body{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:88px;}
+.search-wrap{max-width:640px;margin:14px auto 0;padding:0 14px;}
+.search-box{position:relative;}
+.search-box input{width:100%;background:var(--sf);border:1px solid var(--bd);
+  border-radius:var(--r);color:var(--tx);font-family:var(--fb);font-size:14px;
+  padding:11px 16px 11px 42px;outline:none;transition:border-color .2s;}
+.search-box input::placeholder{color:var(--txd);}
+.search-box input:focus{border-color:var(--pri);box-shadow:0 0 0 3px rgba(0,119,255,.1);}
+.si{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--txd);pointer-events:none;}
 
-        .screen { display: none; padding: 20px; max-width: 600px; margin: 0 auto; width: 100%; }
-        .screen.active { display: block; animation: fadeIn 0.4s ease-out; }
+.stats{max-width:640px;margin:10px auto 0;padding:0 14px;
+  display:flex;gap:8px;flex-wrap:wrap;}
+.schip{background:var(--sf);border:1px solid var(--bd);border-radius:20px;
+  padding:4px 12px;font-size:11px;color:var(--txm);}
+.schip b{color:var(--acc);}
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.apps-list{max-width:640px;margin:12px auto 0;padding:0 14px;
+  display:flex;flex-direction:column;gap:10px;}
 
-        input {
-            width: 100%; padding: 12px; margin-bottom: 15px;
-            background: rgba(0, 0, 0, 0.3); border: 1px solid var(--card-border);
-            color: white; border-radius: 8px; outline: none; transition: 0.3s;
-        }
-        input:focus { border-color: var(--accent); box-shadow: 0 0 8px rgba(30, 96, 145, 0.5); }
+.empty{text-align:center;padding:60px 20px 40px;color:var(--txm);}
+.empty svg{opacity:.2;margin-bottom:16px;}
+.empty h3{font-family:var(--fd);font-size:13px;letter-spacing:1px;margin-bottom:7px;}
+.empty p{font-size:13px;color:var(--txd);}
 
-        button {
-            width: 100%; padding: 12px; border: none; border-radius: 8px;
-            background: linear-gradient(135deg, var(--card-border), var(--accent));
-            color: white; font-weight: 600; cursor: pointer; transition: 0.3s;
-        }
-        button:hover { filter: brightness(1.2); box-shadow: 0 0 15px rgba(30, 96, 145, 0.6); }
+/* App Card */
+.acard{background:var(--sf);border:1px solid var(--bd);border-radius:16px;
+  overflow:hidden;transition:border-color .2s;}
+.acard:hover{border-color:rgba(0,119,255,.32);}
+.ahdr{display:flex;align-items:center;padding:13px 14px;cursor:pointer;gap:11px;}
+.aicon{width:42px;height:42px;border-radius:10px;
+  background:linear-gradient(135deg,var(--pri),var(--acc));
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--fd);font-size:17px;font-weight:700;color:#fff;flex-shrink:0;}
+.ainfo{flex:1;min-width:0;}
+.aname{font-family:var(--fd);font-size:13px;font-weight:600;letter-spacing:.4px;
+  color:var(--tx);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.acnt{font-size:11px;color:var(--txm);}
+.a-acts{display:flex;gap:5px;}
+.ibt{width:30px;height:30px;border-radius:7px;border:1px solid var(--bd);
+  background:transparent;color:var(--txm);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:.15s;}
+.ibt:hover{border-color:var(--err);color:var(--err);background:rgba(255,59,92,.08);}
+.ibt.add:hover{border-color:var(--acc);color:var(--acc);background:var(--acc2);}
+.achev{color:var(--txd);transition:transform .3s;flex-shrink:0;}
+.acard.exp .achev{transform:rotate(180deg);}
 
-        .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .topbar h1 { font-size: 1.5rem; letter-spacing: 1px; text-shadow: 0 0 10px var(--accent); }
-        
-        .app-card { margin-bottom: 15px; padding: 15px; cursor: pointer; transition: 0.3s; }
-        .app-card:hover { border-color: var(--accent); }
-        .app-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 1.1rem; }
-        
-        .cred-list { display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
-        .app-card.open .cred-list { display: block; }
-        
-        .cred-row {
-            display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;
-            background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;
-        }
-        .cred-details { display: flex; justify-content: space-between; align-items: center; }
-        .cred-actions { display: flex; gap: 10px; margin-top: 5px; }
-        .icon-btn { 
-            background: transparent; width: auto; padding: 5px 10px; color: var(--text-muted); 
-            border: 1px solid var(--text-muted); font-size: 0.9rem; 
-            display: flex; align-items: center; justify-content: center;
-        }
-        .icon-btn:hover { color: white; border-color: white; background: rgba(255,255,255,0.1); box-shadow: none;}
-        .icon-btn img { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--accent); }
+/* Credentials */
+.creds-wrap{display:none;border-top:1px solid var(--bd);background:rgba(0,0,0,.18);}
+.acard.exp .creds-wrap{display:block;}
+.cred-row{display:flex;align-items:center;padding:12px 14px;gap:10px;
+  border-bottom:1px solid rgba(0,119,255,.06);}
+.cred-row:last-of-type{border-bottom:none;}
+.cr-info{flex:1;min-width:0;}
+.cr-lbl{font-size:10px;color:var(--txd);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;}
+.cr-user{font-size:13px;font-weight:500;color:var(--tx);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cr-pw-row{display:flex;align-items:center;gap:5px;margin-top:2px;}
+.cr-pw{font-size:13px;color:var(--txm);letter-spacing:2px;font-family:monospace;}
+.rev-btn{background:none;border:none;cursor:pointer;color:var(--txd);
+  display:flex;padding:2px;transition:color .15s;}
+.rev-btn:hover{color:var(--acc);}
+.cr-acts{display:flex;gap:4px;flex-shrink:0;}
+.csm{height:28px;padding:0 9px;border-radius:6px;border:1px solid var(--bd);
+  background:transparent;color:var(--txm);font-family:var(--fb);font-size:11px;
+  cursor:pointer;display:flex;align-items:center;gap:3px;transition:.15s;white-space:nowrap;}
+.csm:hover{border-color:var(--acc);color:var(--acc);background:var(--acc2);}
+.csm.d:hover{border-color:var(--err);color:var(--err);background:rgba(255,59,92,.08);}
+.csm.copied{border-color:var(--ok);color:var(--ok);background:rgba(0,255,136,.08);}
+.add-cred-row{padding:10px 14px;}
+.add-cred-btn{width:100%;background:transparent;border:1px dashed var(--bd);
+  border-radius:var(--rs);color:var(--txd);font-family:var(--fb);font-size:12px;
+  padding:9px;display:flex;align-items:center;justify-content:center;gap:6px;
+  cursor:pointer;transition:.2s;}
+.add-cred-btn:hover{border-color:var(--acc);color:var(--acc);border-style:solid;background:var(--acc2);}
 
-        .fab {
-            position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px;
-            border-radius: 50%; font-size: 24px; display: flex; justify-content: center; align-items: center;
-            box-shadow: 0 0 20px var(--accent); z-index: 100;
-        }
+/* FAB */
+.fab{position:fixed;bottom:22px;right:20px;width:56px;height:56px;
+  border-radius:16px;background:linear-gradient(135deg,var(--pri),var(--acc));
+  border:none;color:#fff;font-size:26px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--gs),0 8px 24px rgba(0,0,0,.4);transition:.2s;z-index:9;}
+.fab:hover,.fab:active{transform:scale(1.06);box-shadow:var(--ga),0 8px 24px rgba(0,0,0,.4);}
 
-        .text-center { text-align: center; }
-        .mt-4 { margin-top: 1rem; }
-        .mb-4 { margin-bottom: 1rem; }
-        .link { color: var(--accent); cursor: pointer; font-size: 0.9rem; text-decoration: underline; }
-    </style>
+/* ── MODALS ── */
+.moverlay{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);
+  z-index:200;display:none;align-items:flex-end;justify-content:center;}
+.moverlay.on{display:flex;}
+@media(min-width:480px){.moverlay{align-items:center;padding:20px;}}
+.mdl{background:var(--sf);border:1px solid var(--bd);
+  border-radius:20px 20px 0 0;width:100%;max-width:460px;
+  padding:26px 22px 28px;box-shadow:var(--gs),0 -8px 50px rgba(0,0,0,.45);
+  animation:slideUp .25s ease;}
+@media(min-width:480px){.mdl{border-radius:20px;animation:fadeInM .2s ease;}}
+@keyframes slideUp{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes fadeInM{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+.mhandle{width:36px;height:4px;background:var(--bd);border-radius:2px;margin:0 auto 18px;}
+@media(min-width:480px){.mhandle{display:none;}}
+.mtitle{font-family:var(--fd);font-size:13px;letter-spacing:1.5px;color:var(--acc);
+  text-transform:uppercase;margin-bottom:18px;}
+.fgrp{margin-bottom:14px;}
+.flbl{display:block;font-size:11px;letter-spacing:1px;color:var(--txm);
+  text-transform:uppercase;margin-bottom:6px;}
+.finp{width:100%;background:var(--sf2);border:1px solid var(--bd);
+  border-radius:var(--rs);color:var(--tx);font-family:var(--fb);font-size:14px;
+  padding:11px 14px;outline:none;transition:border-color .2s;}
+.finp::placeholder{color:var(--txd);}
+.finp:focus{border-color:var(--pri);box-shadow:0 0 0 3px rgba(0,119,255,.1);}
+select.finp{cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235A8AB0' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;}
+.pw-wrap{position:relative;}
+.pw-wrap .finp{padding-right:42px;}
+.tpw{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--txd);cursor:pointer;padding:3px;display:flex;}
+.tpw:hover{color:var(--txm);}
+.mbtns{display:flex;gap:10px;margin-top:18px;}
+.btn-c{flex:1;padding:12px;border-radius:var(--rs);border:1px solid var(--bd);
+  background:transparent;color:var(--txm);font-family:var(--fb);font-size:14px;cursor:pointer;transition:.15s;}
+.btn-c:hover{border-color:var(--bdh);color:var(--tx);}
+.btn-s{flex:2;padding:12px;border-radius:var(--rs);border:none;
+  background:linear-gradient(135deg,var(--pri),var(--acc));color:#fff;
+  font-family:var(--fd);font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;
+  box-shadow:var(--gs);transition:.15s;}
+.btn-s:hover{box-shadow:var(--ga);transform:translateY(-1px);}
+.btn-del{flex:2;padding:12px;border-radius:var(--rs);border:none;
+  background:var(--err);color:#fff;font-family:var(--fd);font-size:11px;
+  font-weight:600;letter-spacing:1px;cursor:pointer;
+  box-shadow:0 0 20px rgba(255,59,92,.3);}
+.confirm-txt{font-size:14px;color:var(--txm);margin-bottom:18px;line-height:1.6;}
+.confirm-txt strong{color:var(--tx);}
+
+/* Settings sheet */
+#m-settings .mdl{padding:0 0 12px;}
+.sets-head{padding:18px 22px;border-bottom:1px solid var(--bd);}
+.sets-user{display:flex;align-items:center;gap:12px;}
+.sets-avatar{width:44px;height:44px;border-radius:50%;border:2px solid var(--acc);object-fit:cover;}
+.sets-uname{font-size:14px;font-weight:600;color:var(--tx);}
+.sets-uemail{font-size:12px;color:var(--txm);margin-top:2px;}
+.sets-guest{font-size:13px;color:var(--txm);font-style:italic;}
+.sets-item{display:flex;align-items:center;gap:11px;padding:13px 22px;
+  cursor:pointer;transition:background .15s;font-size:14px;color:var(--txm);}
+.sets-item:hover{background:var(--sf2);color:var(--tx);}
+.sets-item svg{flex-shrink:0;color:var(--txd);}
+.sets-item:hover svg{color:var(--acc);}
+.sets-item.red:hover{color:var(--err);}
+.sets-item.red:hover svg{color:var(--err);}
+.sets-div{height:1px;background:var(--bd);margin:6px 0;}
+.sets-google{display:flex;align-items:center;gap:9px;margin:8px 22px 4px;
+  background:var(--sf2);border:1px solid var(--bd);border-radius:var(--rs);
+  padding:10px 14px;cursor:pointer;font-size:13px;color:var(--tx);
+  font-family:var(--fb);transition:.15s;}
+.sets-google:hover{border-color:var(--bdh);}
+
+/* Change PIN modal sub-steps */
+#m-changepin .mdl{min-height:auto;}
+.chpin-wrap{display:flex;flex-direction:column;align-items:center;}
+.chpin-dots{display:flex;gap:14px;justify-content:center;margin:14px 0 20px;}
+.chpin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;width:100%;max-width:260px;}
+.chpin-msg{font-size:12px;min-height:17px;margin-top:8px;text-align:center;}
+.chpin-msg.err{color:var(--err);}
+
+/* Toast */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(8px);
+  background:var(--sf3);border:1px solid var(--bd);border-radius:10px;
+  padding:10px 18px;font-size:13px;color:var(--tx);z-index:999;
+  opacity:0;transition:.25s;pointer-events:none;white-space:nowrap;max-width:90vw;}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px;}
+
+/* Responsive */
+@media(max-width:380px){
+  .cr-acts{flex-wrap:wrap;}
+  .auth-title{font-size:17px;}
+}
+</style>
 </head>
 <body>
 
-    <div id="setup-screen" class="screen">
-        <div class="glass-panel glow-border" style="padding: 30px; margin-top: 10vh;">
-            <h2 class="text-center mb-4"><i class="fas fa-shield-alt"></i> Initialize Vault</h2>
-            <p class="text-center text-muted mb-4" style="font-size: 0.9rem;">Create a Master PIN to encrypt your data. Set a security question for recovery.</p>
-            
-            <input type="password" id="setup-pin" placeholder="Enter Master PIN (e.g., 6 digits)">
-            <input type="text" id="setup-q" placeholder="Security Question (e.g., First Pet?)">
-            <input type="password" id="setup-a" placeholder="Security Answer">
-            <button onclick="initializeVault()">Secure Vault</button>
-        </div>
+<!-- ════════════════════════ AUTH SCREEN ════════════════════════ -->
+<div id="s-auth" class="scr">
+  <div id="auth-back-btn" class="auth-back" onclick="authBack()" style="display:none">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Back
+  </div>
+  <div class="auth-top">
+    <img class="auth-logo icon-img" src="" alt="PM">
+    <div class="auth-title">PASSWORD MANAGER</div>
+    <div class="auth-sub" id="auth-sub">SECURE VAULT</div>
+  </div>
+  <div class="step-dots" id="setup-dots" style="margin-bottom:20px;display:none;">
+    <div class="sdot on" id="sdot0"></div>
+    <div class="sdot" id="sdot1"></div>
+    <div class="sdot" id="sdot2"></div>
+  </div>
+  <div class="pin-card">
+    <div class="pin-label" id="pin-label">ENTER PIN</div>
+    <div class="pin-dots">
+      <div class="pd" id="pd0"></div><div class="pd" id="pd1"></div>
+      <div class="pd" id="pd2"></div><div class="pd" id="pd3"></div>
     </div>
+    <div class="pin-pad">
+      <button class="pk" onclick="pk('1')">1</button>
+      <button class="pk" onclick="pk('2')">2</button>
+      <button class="pk" onclick="pk('3')">3</button>
+      <button class="pk" onclick="pk('4')">4</button>
+      <button class="pk" onclick="pk('5')">5</button>
+      <button class="pk" onclick="pk('6')">6</button>
+      <button class="pk" onclick="pk('7')">7</button>
+      <button class="pk" onclick="pk('8')">8</button>
+      <button class="pk" onclick="pk('9')">9</button>
+      <button class="pk ghost"></button>
+      <button class="pk" onclick="pk('0')">0</button>
+      <button class="pk del" onclick="pkDel()">&#9003;</button>
+    </div>
+    <div class="pin-msg info" id="pin-msg"></div>
+  </div>
+  <div class="pin-link" id="forgot-link" onclick="goForgot()" style="display:none">Forgot PIN?</div>
+</div>
 
-    <div id="lock-screen" class="screen">
-        <div class="glass-panel glow-border" style="padding: 30px; text-align: center; margin-top: 20vh;">
-            <i class="fas fa-cube" style="font-size: 3rem; color: var(--accent); margin-bottom: 20px; text-shadow: 0 0 15px var(--accent);"></i>
-            <h2 class="mb-4">Vault Locked</h2>
-            <input type="password" id="login-pin" placeholder="Enter Master PIN">
-            <button onclick="unlockVault()">Decrypt & Enter</button>
-            <p class="mt-4 link" onclick="showReset()">Forgot PIN?</p>
-            
-            <button id="lock-sync-btn" onclick="toggleCloudSync()" style="margin-top:20px; background:transparent; border:1px solid var(--text-muted); color:var(--text-muted); display:none;">
-                <i class="fab fa-google"></i> Sign In to Sync
+<!-- ════════════════════════ SECURITY Q&A SCREEN ════════════════════════ -->
+<div id="s-qa" class="scr">
+  <div class="auth-top">
+    <img class="auth-logo icon-img" src="" alt="PM">
+    <div class="auth-title">PASSWORD MANAGER</div>
+  </div>
+  <div class="qa-card">
+    <div class="step-dots" style="margin-bottom:18px;">
+      <div class="sdot" id="qa-sdot0"></div>
+      <div class="sdot" id="qa-sdot1"></div>
+      <div class="sdot on" id="qa-sdot2"></div>
+    </div>
+    <div class="qa-title" id="qa-title">SECURITY SETUP</div>
+    <div class="qa-sub" id="qa-sub">Set a recovery question in case you forget your PIN.</div>
+    <div class="fgrp">
+      <label class="flbl">Security Question</label>
+      <select class="finp" id="qa-q-select" onchange="qaSelectChange()">
+        <option value="">— Choose a question —</option>
+        <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+        <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
+        <option value="What was the name of your first school?">What was the name of your first school?</option>
+        <option value="What is your favourite movie?">What is your favourite movie?</option>
+        <option value="What city were you born in?">What city were you born in?</option>
+        <option value="What is your childhood nickname?">What is your childhood nickname?</option>
+        <option value="custom">Write my own question...</option>
+      </select>
+    </div>
+    <div class="fgrp" id="qa-custom-wrap" style="display:none;">
+      <label class="flbl">Your Custom Question</label>
+      <input type="text" class="finp" id="qa-custom-q" placeholder="Type your security question">
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Answer</label>
+      <div class="pw-wrap">
+        <input type="password" class="finp" id="qa-ans" placeholder="Your answer (case-insensitive)">
+        <button class="tpw" onclick="togglePw('qa-ans',this)" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Confirm Answer</label>
+      <input type="text" class="finp" id="qa-ans2" placeholder="Re-enter your answer">
+    </div>
+    <div class="pin-msg err" id="qa-msg" style="margin-bottom:10px;"></div>
+    <button class="btn-s" style="width:100%;padding:13px;" onclick="qaSubmit()">SAVE &amp; CONTINUE</button>
+  </div>
+</div>
+
+<!-- ════════════════════════ FORGOT PIN SCREEN ════════════════════════ -->
+<div id="s-forgot" class="scr">
+  <div id="fg-back" class="auth-back" onclick="goLock()" style="margin:20px 20px 0;align-self:flex-start;display:flex;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to Login
+  </div>
+  <div class="auth-top" style="margin-top:10px;">
+    <img class="auth-logo icon-img" src="" alt="PM">
+    <div class="auth-title">PASSWORD MANAGER</div>
+  </div>
+  <div class="fg-card">
+    <div class="fg-title">FORGOT PIN</div>
+    <div class="fg-sub">Answer your security question to reset your PIN.</div>
+    <div class="question-box" id="fg-question">...</div>
+    <div class="fgrp">
+      <label class="flbl">Your Answer</label>
+      <div class="pw-wrap">
+        <input type="password" class="finp" id="fg-ans" placeholder="Enter your answer">
+        <button class="tpw" onclick="togglePw('fg-ans',this)" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="pin-msg err" id="fg-msg" style="margin-bottom:10px;"></div>
+    <button class="btn-s" style="width:100%;padding:13px;" onclick="fgVerify()">VERIFY ANSWER</button>
+  </div>
+</div>
+
+<!-- ════════════════════════ MAIN SCREEN ════════════════════════ -->
+<div id="s-main" class="scr">
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-row">
+      <div class="hdr-left">
+        <img class="hdr-logo icon-img" src="" alt="PM">
+        <div class="hdr-title">PASSWORD MANAGER</div>
+      </div>
+      <div class="hdr-right">
+        <span class="sync-chip" id="sync-chip">GUEST</span>
+        <button class="icon-btn" onclick="openSettings()" title="Settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="main-body">
+    <div class="search-wrap">
+      <div class="search-box">
+        <svg class="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="srch" placeholder="Search apps..." oninput="renderApps()">
+      </div>
+    </div>
+    <div class="stats">
+      <div class="schip"><b id="st-apps">0</b> Apps</div>
+      <div class="schip"><b id="st-creds">0</b> Credentials</div>
+    </div>
+    <div class="apps-list" id="apps-list"></div>
+  </div>
+  <button class="fab" onclick="openAddApp()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+</div>
+
+<!-- ════════════════════════ MODALS ════════════════════════ -->
+
+<!-- Add App -->
+<div class="moverlay" id="m-addapp" onclick="ovClick(event,'m-addapp')">
+  <div class="mdl">
+    <div class="mhandle"></div>
+    <div class="mtitle">Add New App</div>
+    <div class="fgrp">
+      <label class="flbl">App / Service Name</label>
+      <input type="text" class="finp" id="inp-appname" placeholder="e.g. Instagram, Gmail, Netflix"
+        onkeydown="if(event.key==='Enter')saveApp()">
+    </div>
+    <div class="mbtns">
+      <button class="btn-c" onclick="closeModal('m-addapp')">Cancel</button>
+      <button class="btn-s" onclick="saveApp()">SAVE APP</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Credential -->
+<div class="moverlay" id="m-cred" onclick="ovClick(event,'m-cred')">
+  <div class="mdl">
+    <div class="mhandle"></div>
+    <div class="mtitle" id="cred-title">Add Credential</div>
+    <div class="fgrp">
+      <label class="flbl">Label (Optional)</label>
+      <input type="text" class="finp" id="inp-lbl" placeholder="e.g. Personal, Work, Gaming">
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Username / Email</label>
+      <input type="text" class="finp" id="inp-user" placeholder="Enter username or email"
+        autocomplete="off" onkeydown="if(event.key==='Enter')saveCred()">
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Password</label>
+      <div class="pw-wrap">
+        <input type="password" class="finp" id="inp-pw" placeholder="Enter password"
+          autocomplete="off" onkeydown="if(event.key==='Enter')saveCred()">
+        <button class="tpw" onclick="togglePw('inp-pw',this)" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="mbtns">
+      <button class="btn-c" onclick="closeModal('m-cred')">Cancel</button>
+      <button class="btn-s" onclick="saveCred()">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Delete -->
+<div class="moverlay" id="m-confirm" onclick="ovClick(event,'m-confirm')">
+  <div class="mdl">
+    <div class="mhandle"></div>
+    <div class="mtitle" id="conf-title">Confirm Delete</div>
+    <div class="confirm-txt" id="conf-txt"></div>
+    <div class="mbtns">
+      <button class="btn-c" onclick="closeModal('m-confirm')">Cancel</button>
+      <button class="btn-del" id="conf-btn">DELETE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Sheet -->
+<div class="moverlay" id="m-settings" onclick="ovClick(event,'m-settings')">
+  <div class="mdl" style="padding:0 0 14px;">
+    <div class="mhandle" style="margin:16px auto 0;"></div>
+    <div class="sets-head">
+      <div id="sets-user-area"></div>
+    </div>
+    <div id="sets-google-wrap"></div>
+    <div class="sets-div"></div>
+    <div class="sets-item" onclick="openChangePin()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      Change PIN
+    </div>
+    <div class="sets-item" onclick="openChangeQA()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Change Security Q&amp;A
+    </div>
+    <div class="sets-div"></div>
+    <div class="sets-item" onclick="lockVault()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      Lock Vault
+    </div>
+    <div class="sets-item red" id="sets-signout-item" onclick="doSignOut()" style="display:none;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </div>
+  </div>
+</div>
+
+<!-- Change PIN Modal -->
+<div class="moverlay" id="m-changepin" onclick="ovClick(event,'m-changepin')">
+  <div class="mdl">
+    <div class="mhandle"></div>
+    <div class="mtitle" id="chpin-title">Change PIN</div>
+    <div class="chpin-wrap">
+      <div class="pin-label" id="chpin-label" style="font-size:11px;letter-spacing:2px;color:var(--txm);">ENTER CURRENT PIN</div>
+      <div class="chpin-dots">
+        <div class="pd" id="cp0"></div><div class="pd" id="cp1"></div>
+        <div class="pd" id="cp2"></div><div class="pd" id="cp3"></div>
+      </div>
+      <div class="chpin-pad">
+        <button class="pk" onclick="cpk('1')">1</button>
+        <button class="pk" onclick="cpk('2')">2</button>
+        <button class="pk" onclick="cpk('3')">3</button>
+        <button class="pk" onclick="cpk('4')">4</button>
+        <button class="pk" onclick="cpk('5')">5</button>
+        <button class="pk" onclick="cpk('6')">6</button>
+        <button class="pk" onclick="cpk('7')">7</button>
+        <button class="pk" onclick="cpk('8')">8</button>
+        <button class="pk" onclick="cpk('9')">9</button>
+        <button class="pk ghost"></button>
+        <button class="pk" onclick="cpk('0')">0</button>
+        <button class="pk del" onclick="cpkDel()">&#9003;</button>
+      </div>
+      <div class="chpin-msg err" id="chpin-msg"></div>
+    </div>
+    <div class="mbtns" style="margin-top:18px;">
+      <button class="btn-c" onclick="closeModal('m-changepin')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Q&A Modal -->
+<div class="moverlay" id="m-changeqa" onclick="ovClick(event,'m-changeqa')">
+  <div class="mdl">
+    <div class="mhandle"></div>
+    <div class="mtitle">Update Security Q&amp;A</div>
+    <div class="fgrp">
+      <label class="flbl">New Security Question</label>
+      <select class="finp" id="cqa-q-select" onchange="cqaSelectChange()">
+        <option value="">— Choose a question —</option>
+        <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+        <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
+        <option value="What was the name of your first school?">What was the name of your first school?</option>
+        <option value="What is your favourite movie?">What is your favourite movie?</option>
+        <option value="What city were you born in?">What city were you born in?</option>
+        <option value="What is your childhood nickname?">What is your childhood nickname?</option>
+        <option value="custom">Write my own question...</option>
+      </select>
+    </div>
+    <div class="fgrp" id="cqa-custom-wrap" style="display:none;">
+      <label class="flbl">Custom Question</label>
+      <input type="text" class="finp" id="cqa-custom-q" placeholder="Your security question">
+    </div>
+    <div class="fgrp">
+      <label class="flbl">New Answer</label>
+      <div class="pw-wrap">
+        <input type="password" class="finp" id="cqa-ans" placeholder="Your answer">
+        <button class="tpw" onclick="togglePw('cqa-ans',this)" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Confirm Answer</label>
+      <input type="text" class="finp" id="cqa-ans2" placeholder="Re-enter answer">
+    </div>
+    <div class="pin-msg err" id="cqa-msg" style="margin-bottom:8px;"></div>
+    <div class="mbtns">
+      <button class="btn-c" onclick="closeModal('m-changeqa')">Cancel</button>
+      <button class="btn-s" onclick="cqaSave()">UPDATE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════
+// FIREBASE CONFIG
+// ════════════════════════════════════════════════════
+const FB_CFG = {
+  apiKey:"AIzaSyAdJb2p1FO9WZ9eZzO_bxJJYmFB3cjK0Go",
+  authDomain:"password-manager-0710.firebaseapp.com",
+  projectId:"password-manager-0710",
+  storageBucket:"password-manager-0710.firebasestorage.app",
+  messagingSenderId:"737563220775",
+  appId:"1:737563220775:web:83ac28f49f87e1d1192702"
+};
+
+// ════════════════════════════════════════════════════
+// PWA SETUP
+// ════════════════════════════════════════════════════
+const ICON_B64 = "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";
+const ICON_SRC = "data:image/jpeg;base64," + ICON_B64;
+
+(function setupPWA(){
+  document.querySelectorAll('.icon-img').forEach(el => el.src = ICON_SRC);
+  document.getElementById('ati').href = ICON_SRC;
+  const m = {name:"Password Manager",short_name:"Password Manager",
+    start_url:"./",display:"standalone",
+    background_color:"#070D1A",theme_color:"#070D1A",orientation:"portrait",
+    icons:[{src:ICON_SRC,sizes:"192x192",type:"image/jpeg"},
+           {src:ICON_SRC,sizes:"512x512",type:"image/jpeg"}]};
+  const blob = new Blob([JSON.stringify(m)],{type:'application/json'});
+  document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
+})();
+
+// ════════════════════════════════════════════════════
+// CRYPTO
+// ════════════════════════════════════════════════════
+const VERIFY_STR = "PM_VAULT_MANAS_OK";
+function enc(text,key){ return CryptoJS.AES.encrypt(text,key).toString(); }
+function dec(ct,key){
+  try{ const b=CryptoJS.AES.decrypt(ct,key); return b.toString(CryptoJS.enc.Utf8)||null; }
+  catch(e){ return null; }
+}
+function encObj(obj,key){ return enc(JSON.stringify(obj),key); }
+function decObj(ct,key){
+  const s=dec(ct,key); if(!s) return null;
+  try{ return JSON.parse(s); }catch(e){ return null; }
+}
+function hashStr(s){ return CryptoJS.SHA256(s.toLowerCase().trim()).toString(); }
+function verifyPIN(pin){
+  const v=LS.get('pm_pv'); if(!v) return false;
+  return dec(v,pin)===VERIFY_STR;
+}
+function setPINVerify(pin){ LS.set('pm_pv', enc(VERIFY_STR,pin)); }
+
+// ════════════════════════════════════════════════════
+// STORAGE
+// ════════════════════════════════════════════════════
+const LS = {
+  get:(k)=>localStorage.getItem(k),
+  set:(k,v)=>localStorage.setItem(k,v),
+  del:(k)=>localStorage.removeItem(k)
+};
+
+// ════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════
+let PIN = null;           // master PIN in memory
+let VAULT = [];           // decrypted apps data
+let USER = null;          // Firebase user
+let pinBuf = '';
+let pinStep = '';         // current PIN flow step
+let pinTmp = '';          // temp PIN during setup
+let addCredAppId = null;
+let editCredAppId = null;
+let editCredId = null;
+let chPinBuf = '';
+let chPinStep = ''; // 'verify','new','confirm'
+let chPinTmp = '';
+let qaVerified = false;   // used in forgot PIN flow
+
+// ════════════════════════════════════════════════════
+// FIREBASE
+// ════════════════════════════════════════════════════
+let fb_auth = null, fb_db = null;
+(function initFB(){
+  try{
+    firebase.initializeApp(FB_CFG);
+    fb_auth = firebase.auth();
+    fb_db = firebase.firestore();
+    fb_auth.onAuthStateChanged(onAuthChange);
+  }catch(e){ console.warn('Firebase init error',e); }
+})();
+
+async function onAuthChange(user){
+  USER = user;
+  updateSyncUI();
+  if(user && PIN && fb_db){
+    // load cloud data if vault is empty or sync
+    const cd = await cloudLoad();
+    if(cd){
+      const parsed = decObj(cd, PIN);
+      if(parsed){ VAULT = parsed; saveLocal(); renderApps(); showToast('Synced from cloud'); }
+    }
+  }
+}
+
+async function cloudLoad(){
+  if(!fb_db||!USER) return null;
+  try{
+    const doc = await fb_db.collection('vaults').doc(USER.uid).get();
+    return doc.exists ? doc.data().enc : null;
+  }catch(e){ return null; }
+}
+async function cloudSave(enc_data){
+  if(!fb_db||!USER) return;
+  try{ await fb_db.collection('vaults').doc(USER.uid).set({enc:enc_data,ts:new Date()}); }
+  catch(e){ console.warn('Cloud save failed',e); }
+}
+
+function signInGoogle(){
+  if(!fb_auth){ showToast('Firebase not ready'); return; }
+  const p = new firebase.auth.GoogleAuthProvider();
+  fb_auth.signInWithPopup(p)
+    .then(async r=>{
+      const cd = await cloudLoad();
+      if(!cd && VAULT.length > 0){
+        if(confirm('Back up your local vault to cloud?')){ await saveAll(); showToast('Vault backed up to cloud'); }
+      }
+      closeModal('m-settings');
+    })
+    .catch(e=>showToast('Sign in failed: '+e.message));
+}
+function doSignOut(){
+  if(fb_auth) fb_auth.signOut().then(()=>{ USER=null; updateSyncUI(); closeModal('m-settings'); showToast('Signed out'); });
+}
+
+function updateSyncUI(){
+  const chip = document.getElementById('sync-chip');
+  const ua = document.getElementById('sets-user-area');
+  const gw = document.getElementById('sets-google-wrap');
+  const so = document.getElementById('sets-signout-item');
+  if(USER){
+    chip.textContent='CLOUD'; chip.className='sync-chip cloud';
+    ua.innerHTML=`<div class="sets-user">
+      <img class="sets-avatar" src="${USER.photoURL||ICON_SRC}" onerror="this.src='${ICON_SRC}'">
+      <div><div class="sets-uname">${escH(USER.displayName||'User')}</div>
+      <div class="sets-uemail">${escH(USER.email)}</div></div></div>`;
+    gw.innerHTML='';
+    so.style.display='flex';
+  } else {
+    chip.textContent='GUEST'; chip.className='sync-chip';
+    ua.innerHTML=`<div class="sets-guest">Guest Mode — data stored locally</div>`;
+    gw.innerHTML=`<button class="sets-google" onclick="signInGoogle()">
+      <svg width="16" height="16" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.565 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.706A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.038l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+      Sign in with Google</button>`;
+    so.style.display='none';
+  }
+}
+
+// ════════════════════════════════════════════════════
+// PERSISTENCE
+// ════════════════════════════════════════════════════
+function saveLocal(){
+  if(!PIN) return;
+  LS.set('pm_vault', encObj(VAULT, PIN));
+}
+async function saveAll(){
+  saveLocal();
+  if(USER) await cloudSave(LS.get('pm_vault'));
+}
+function loadVault(){
+  const raw = LS.get('pm_vault');
+  if(!raw){ VAULT=[]; return; }
+  const d = decObj(raw, PIN);
+  VAULT = d||[];
+}
+
+// Re-encrypt vault with new PIN
+function reEncryptVault(oldPin, newPin){
+  LS.set('pm_vault', encObj(VAULT, newPin));
+  setPINVerify(newPin);
+  if(USER) cloudSave(LS.get('pm_vault'));
+}
+
+// ════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════
+function init(){
+  const isSetup = LS.get('pm_setup');
+  if(!isSetup){
+    // First time - setup wizard
+    showScreen('s-auth');
+    startSetup();
+  } else {
+    showScreen('s-auth');
+    startLock();
+  }
+  updateSyncUI();
+}
+
+// ════════════════════════════════════════════════════
+// SCREEN NAVIGATION
+// ════════════════════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  const el = document.getElementById(id);
+  if(el) el.classList.add('on');
+}
+
+// ════════════════════════════════════════════════════
+// SETUP FLOW (first time)
+// ════════════════════════════════════════════════════
+function startSetup(){
+  pinStep = 'setup_create';
+  document.getElementById('auth-sub').textContent = 'FIRST TIME SETUP';
+  document.getElementById('setup-dots').style.display = 'flex';
+  setStepDots('setup',0);
+  document.getElementById('pin-label').textContent = 'CREATE YOUR PIN';
+  document.getElementById('pin-msg').textContent = '';
+  document.getElementById('forgot-link').style.display = 'none';
+  document.getElementById('auth-back-btn').style.display = 'none';
+  pinBuf=''; updatePinDots();
+}
+
+// ════════════════════════════════════════════════════
+// LOCK FLOW
+// ════════════════════════════════════════════════════
+function startLock(){
+  pinStep = 'lock';
+  document.getElementById('auth-sub').textContent = 'SECURE VAULT';
+  document.getElementById('setup-dots').style.display = 'none';
+  document.getElementById('pin-label').textContent = 'ENTER YOUR PIN';
+  document.getElementById('pin-msg').textContent = '';
+  document.getElementById('forgot-link').style.display = 'block';
+  document.getElementById('auth-back-btn').style.display = 'none';
+  pinBuf=''; updatePinDots();
+}
+
+function goLock(){
+  showScreen('s-auth');
+  startLock();
+}
+
+// ════════════════════════════════════════════════════
+// PIN INPUT (auth screen)
+// ════════════════════════════════════════════════════
+function pk(d){
+  if(pinBuf.length>=4) return;
+  pinBuf+=d; updatePinDots();
+  if(pinBuf.length===4) setTimeout(processPin,120);
+}
+function pkDel(){ pinBuf=pinBuf.slice(0,-1); updatePinDots(); document.getElementById('pin-msg').textContent=''; }
+function updatePinDots(){
+  for(let i=0;i<4;i++) document.getElementById('pd'+i).classList.toggle('on',i<pinBuf.length);
+}
+function shakePin(){
+  const c=document.querySelector('.pin-card');
+  c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
+}
+
+function processPin(){
+  const p=pinBuf; pinBuf=''; updatePinDots();
+  const msgEl=document.getElementById('pin-msg');
+
+  if(pinStep==='setup_create'){
+    pinTmp=p;
+    pinStep='setup_confirm';
+    setStepDots('setup',1);
+    document.getElementById('pin-label').textContent='CONFIRM YOUR PIN';
+    msgEl.textContent='';
+    return;
+  }
+  if(pinStep==='setup_confirm'){
+    if(p!==pinTmp){
+      msgEl.className='pin-msg err'; msgEl.textContent='PINs do not match. Try again.';
+      shakePin(); pinStep='setup_create'; pinTmp='';
+      setStepDots('setup',0);
+      document.getElementById('pin-label').textContent='CREATE YOUR PIN';
+      return;
+    }
+    PIN=p; setPINVerify(p);
+    setStepDots('setup',2);
+    // Move to Q&A setup
+    setTimeout(()=>{ showScreen('s-qa'); initQAScreen(); }, 200);
+    return;
+  }
+  if(pinStep==='lock'){
+    if(!verifyPIN(p)){
+      msgEl.className='pin-msg err'; msgEl.textContent='Incorrect PIN. Try again.';
+      shakePin(); return;
+    }
+    PIN=p; loadVault();
+    showScreen('s-main'); renderApps();
+    if(USER) onAuthChange(USER);
+    return;
+  }
+  if(pinStep==='reset_new'){
+    pinTmp=p; pinStep='reset_confirm';
+    document.getElementById('pin-label').textContent='CONFIRM NEW PIN';
+    msgEl.textContent=''; return;
+  }
+  if(pinStep==='reset_confirm'){
+    if(p!==pinTmp){
+      msgEl.className='pin-msg err'; msgEl.textContent='PINs do not match.';
+      shakePin(); pinStep='reset_new'; pinTmp='';
+      document.getElementById('pin-label').textContent='NEW PIN'; return;
+    }
+    // Reset: re-encrypt vault (if any) with new PIN
+    const oldRaw=LS.get('pm_vault');
+    const oldVault = oldRaw ? decObj(oldRaw, PIN)||[] : [];
+    PIN=p; VAULT=oldVault;
+    setPINVerify(p); saveLocal();
+    msgEl.className='pin-msg ok'; msgEl.textContent='PIN reset! Unlocking...';
+    setTimeout(()=>{ showScreen('s-main'); renderApps(); },700);
+    return;
+  }
+}
+
+// ════════════════════════════════════════════════════
+// SETUP STEP DOTS
+// ════════════════════════════════════════════════════
+function setStepDots(prefix,active){
+  if(prefix==='setup'){
+    for(let i=0;i<3;i++){
+      const el=document.getElementById('sdot'+i);
+      if(el) el.className='sdot'+(i<=active?' on':'');
+    }
+  }
+}
+
+function authBack(){}
+
+// ════════════════════════════════════════════════════
+// Q&A SCREEN (setup)
+// ════════════════════════════════════════════════════
+function initQAScreen(){
+  document.getElementById('qa-title').textContent='SECURITY SETUP';
+  document.getElementById('qa-sub').textContent='Set a recovery question in case you forget your PIN.';
+  document.getElementById('qa-q-select').value='';
+  document.getElementById('qa-custom-wrap').style.display='none';
+  document.getElementById('qa-ans').value='';
+  document.getElementById('qa-ans2').value='';
+  document.getElementById('qa-msg').textContent='';
+  setQADots(2); // step 3 of 3
+}
+function setQADots(active){
+  for(let i=0;i<3;i++){
+    const el=document.getElementById('qa-sdot'+i);
+    if(el) el.className='sdot'+(i<=active?' on':'');
+  }
+}
+function qaSelectChange(){
+  const v=document.getElementById('qa-q-select').value;
+  document.getElementById('qa-custom-wrap').style.display=(v==='custom'?'block':'none');
+}
+function qaSubmit(){
+  const sel=document.getElementById('qa-q-select').value;
+  const custom=document.getElementById('qa-custom-q').value.trim();
+  const q=(sel==='custom'?custom:sel);
+  const a=document.getElementById('qa-ans').value.trim();
+  const a2=document.getElementById('qa-ans2').value.trim();
+  const msg=document.getElementById('qa-msg');
+  if(!q){ msg.textContent='Please select or enter a question.'; return; }
+  if(!a){ msg.textContent='Please enter an answer.'; return; }
+  if(a.toLowerCase()!==a2.toLowerCase()){ msg.textContent='Answers do not match.'; return; }
+  LS.set('pm_sq', q);
+  LS.set('pm_sa', hashStr(a));
+  LS.set('pm_setup','1');
+  VAULT=[]; saveLocal();
+  showToast('Setup complete!');
+  showScreen('s-main'); renderApps(); updateSyncUI();
+}
+
+// ════════════════════════════════════════════════════
+// FORGOT PIN FLOW
+// ════════════════════════════════════════════════════
+function goForgot(){
+  const q=LS.get('pm_sq');
+  if(!q){ showToast('No security question set.'); return; }
+  document.getElementById('fg-question').textContent=q;
+  document.getElementById('fg-ans').value='';
+  document.getElementById('fg-msg').textContent='';
+  showScreen('s-forgot');
+}
+function fgVerify(){
+  const a=document.getElementById('fg-ans').value.trim();
+  const msg=document.getElementById('fg-msg');
+  if(!a){ msg.textContent='Please enter your answer.'; return; }
+  const stored=LS.get('pm_sa');
+  if(hashStr(a)!==stored){ msg.textContent='Incorrect answer. Try again.'; return; }
+  // Correct — go to reset PIN
+  showScreen('s-auth');
+  document.getElementById('setup-dots').style.display='none';
+  document.getElementById('auth-sub').textContent='RESET PIN';
+  document.getElementById('forgot-link').style.display='none';
+  document.getElementById('auth-back-btn').style.display='flex';
+  document.getElementById('pin-label').textContent='NEW PIN';
+  document.getElementById('pin-msg').textContent='';
+  pinStep='reset_new'; pinBuf=''; updatePinDots();
+}
+
+// ════════════════════════════════════════════════════
+// MAIN SCREEN RENDER
+// ════════════════════════════════════════════════════
+function renderApps(){
+  const q=(document.getElementById('srch')||{value:''}).value.toLowerCase().trim();
+  const list=document.getElementById('apps-list');
+  const total=VAULT.length;
+  const totalCreds=VAULT.reduce((s,a)=>s+a.creds.length,0);
+  document.getElementById('st-apps').textContent=total;
+  document.getElementById('st-creds').textContent=totalCreds;
+
+  let data=VAULT;
+  if(q) data=VAULT.filter(a=>a.name.toLowerCase().includes(q));
+
+  if(data.length===0){
+    list.innerHTML=`<div class="empty">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      <h3>${q?'No results':'No apps yet'}</h3>
+      <p>${q?'Try a different search':'Tap + to add your first app'}</p>
+    </div>`; return;
+  }
+
+  list.innerHTML=data.map(app=>`
+    <div class="acard" id="ac-${app.id}">
+      <div class="ahdr" onclick="toggleCard('${app.id}')">
+        <div class="aicon">${escH(app.name.charAt(0).toUpperCase())}</div>
+        <div class="ainfo">
+          <div class="aname">${escH(app.name)}</div>
+          <div class="acnt">${app.creds.length} credential${app.creds.length!==1?'s':''}</div>
+        </div>
+        <div class="a-acts" onclick="event.stopPropagation()">
+          <button class="ibt add" title="Add credential" onclick="openAddCred('${app.id}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="ibt" title="Delete app" onclick="confirmDelApp('${app.id}','${escJ(app.name)}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+        <svg class="achev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="creds-wrap">
+        ${app.creds.length===0?'<div style="padding:14px 16px;text-align:center;color:var(--txd);font-size:13px;">No credentials yet</div>':''}
+        ${app.creds.map(c=>`
+        <div class="cred-row" id="cr-${c.id}">
+          <div class="cr-info">
+            ${c.label?`<div class="cr-lbl">${escH(c.label)}</div>`:''}
+            <div class="cr-user">${escH(c.username)}</div>
+            <div class="cr-pw-row">
+              <div class="cr-pw" id="pw-${c.id}">••••••••</div>
+              <button class="rev-btn" onclick="toggleReveal('${c.id}','${escJ(c.password)}')" title="Reveal">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="cr-acts">
+            <button class="csm" id="cu-${c.id}" onclick="cp('${escJ(c.username)}','cu-${c.id}','User')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>User
             </button>
-        </div>
-    </div>
-
-    <div id="reset-screen" class="screen">
-        <div class="glass-panel glow-border" style="padding: 30px; margin-top: 10vh;">
-            <h2 class="mb-4 text-center">Emergency Override</h2>
-            <p id="reset-question-display" class="mb-4 text-center text-muted"></p>
-            <input type="password" id="reset-answer" placeholder="Enter Answer">
-            <input type="password" id="reset-new-pin" placeholder="Enter New Master PIN">
-            <button onclick="resetPIN()">Verify & Reset</button>
-            <p class="mt-4 link text-center" onclick="showLock()">Cancel</p>
-        </div>
-    </div>
-
-    <div id="dashboard-screen" class="screen">
-        <div class="topbar">
-            <h1><i class="fas fa-cube"></i> Vault</h1>
-            <button class="icon-btn" onclick="toggleCloudSync()" id="dash-sync-btn" style="border:none;" title="Sign in with Google">
-                <i class="fab fa-google" style="font-size: 1.2rem;"></i>
+            <button class="csm" id="cp-${c.id}" onclick="cp('${escJ(c.password)}','cp-${c.id}','Pass')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Pass
             </button>
+            <button class="csm" onclick="openEditCred('${app.id}','${c.id}')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="csm d" onclick="confirmDelCred('${app.id}','${c.id}')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+            </button>
+          </div>
+        </div>`).join('')}
+        <div class="add-cred-row">
+          <button class="add-cred-btn" onclick="openAddCred('${app.id}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Credential
+          </button>
         </div>
+      </div>
+    </div>`).join('');
+}
 
-        <input type="text" id="search-bar" placeholder="Search apps..." oninput="renderApps()">
+function toggleCard(id){
+  const c=document.getElementById('ac-'+id);
+  if(c) c.classList.toggle('exp');
+}
+function expandCard(id){
+  const c=document.getElementById('ac-'+id);
+  if(c) c.classList.add('exp');
+}
 
-        <div id="apps-container"></div>
+function toggleReveal(cid,pw){
+  const el=document.getElementById('pw-'+cid);
+  if(!el) return;
+  if(el.textContent==='••••••••'){
+    el.textContent=pw; el.style.letterSpacing='0'; el.style.color='var(--acc)';
+    setTimeout(()=>{ if(el.textContent!=='••••••••'){ el.textContent='••••••••'; el.style.letterSpacing='2px'; el.style.color=''; } },6000);
+  } else { el.textContent='••••••••'; el.style.letterSpacing='2px'; el.style.color=''; }
+}
 
-        <button class="fab" onclick="showAddModal()"><i class="fas fa-plus"></i></button>
-    </div>
+async function cp(text,btnId,label){
+  try{ await navigator.clipboard.writeText(text); }
+  catch(e){
+    const t=document.createElement('textarea');
+    t.value=text; t.style.position='fixed'; t.style.opacity='0';
+    document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+  }
+  const btn=document.getElementById(btnId);
+  if(btn){ btn.classList.add('copied');
+    const orig=btn.innerHTML;
+    btn.innerHTML=`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Copied`;
+    setTimeout(()=>{ btn.classList.remove('copied'); btn.innerHTML=orig; },2200); }
+  showToast(label+' copied');
+}
 
-    <div id="add-modal" class="screen" style="position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:200;">
-        <div class="glass-panel glow-border" style="padding: 30px; margin-top: 15vh;">
-            <h2 class="mb-4">Add Credential</h2>
-            <input type="text" id="entry-app" placeholder="App Name (e.g., Instagram)">
-            <input type="text" id="entry-user" placeholder="Username / Email">
-            <input type="password" id="entry-pass" placeholder="Password">
-            <button onclick="saveEntry()" class="mb-4">Save to Vault</button>
-            <button onclick="closeModal()" style="background: transparent; border: 1px solid var(--text-muted);">Cancel</button>
-        </div>
-    </div>
+// ════════════════════════════════════════════════════
+// APP CRUD
+// ════════════════════════════════════════════════════
+function openAddApp(){
+  document.getElementById('inp-appname').value='';
+  openModal('m-addapp');
+  setTimeout(()=>document.getElementById('inp-appname').focus(),300);
+}
+function saveApp(){
+  const n=document.getElementById('inp-appname').value.trim();
+  if(!n){ showToast('Enter an app name'); return; }
+  const app={id:uid(),name:n,creds:[]};
+  VAULT.unshift(app); saveAll(); renderApps(); closeModal('m-addapp');
+  showToast(n+' added');
+  setTimeout(()=>expandCard(app.id),120);
+}
+function confirmDelApp(id,name){
+  document.getElementById('conf-title').textContent='Delete App';
+  document.getElementById('conf-txt').innerHTML=`Delete <strong>${name}</strong> and all its credentials? This cannot be undone.`;
+  document.getElementById('conf-btn').onclick=()=>{ delApp(id); closeModal('m-confirm'); };
+  openModal('m-confirm');
+}
+function delApp(id){
+  VAULT=VAULT.filter(a=>a.id!==id); saveAll(); renderApps(); showToast('App deleted');
+}
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// ════════════════════════════════════════════════════
+// CREDENTIAL CRUD
+// ════════════════════════════════════════════════════
+function openAddCred(appId){
+  addCredAppId=appId; editCredAppId=null; editCredId=null;
+  document.getElementById('cred-title').textContent='Add Credential';
+  document.getElementById('inp-lbl').value='';
+  document.getElementById('inp-user').value='';
+  document.getElementById('inp-pw').value='';
+  document.getElementById('inp-pw').type='password';
+  openModal('m-cred');
+  setTimeout(()=>document.getElementById('inp-user').focus(),300);
+}
+function openEditCred(appId,credId){
+  editCredAppId=appId; editCredId=credId; addCredAppId=null;
+  const app=VAULT.find(a=>a.id===appId);
+  const c=app?.creds.find(x=>x.id===credId);
+  if(!c) return;
+  document.getElementById('cred-title').textContent='Edit Credential';
+  document.getElementById('inp-lbl').value=c.label||'';
+  document.getElementById('inp-user').value=c.username;
+  document.getElementById('inp-pw').value=c.password;
+  document.getElementById('inp-pw').type='password';
+  openModal('m-cred');
+}
+function saveCred(){
+  const u=document.getElementById('inp-user').value.trim();
+  const p=document.getElementById('inp-pw').value;
+  const l=document.getElementById('inp-lbl').value.trim();
+  if(!u){ showToast('Username required'); return; }
+  if(!p){ showToast('Password required'); return; }
+  if(editCredId){
+    const app=VAULT.find(a=>a.id===editCredAppId);
+    const c=app?.creds.find(x=>x.id===editCredId);
+    if(c){ c.username=u; c.password=p; c.label=l; }
+    saveAll(); renderApps(); closeModal('m-cred');
+    showToast('Credential updated');
+    setTimeout(()=>expandCard(editCredAppId),120);
+  } else {
+    const app=VAULT.find(a=>a.id===addCredAppId);
+    if(app){ app.creds.push({id:uid(),username:u,password:p,label:l}); }
+    saveAll(); renderApps(); closeModal('m-cred');
+    showToast('Credential added');
+    setTimeout(()=>expandCard(addCredAppId),120);
+  }
+}
+function confirmDelCred(appId,credId){
+  document.getElementById('conf-title').textContent='Delete Credential';
+  document.getElementById('conf-txt').innerHTML='Delete this credential? This cannot be undone.';
+  document.getElementById('conf-btn').onclick=()=>{ delCred(appId,credId); closeModal('m-confirm'); };
+  openModal('m-confirm');
+}
+function delCred(appId,credId){
+  const app=VAULT.find(a=>a.id===appId);
+  if(app) app.creds=app.creds.filter(c=>c.id!==credId);
+  saveAll(); renderApps(); showToast('Credential deleted');
+  setTimeout(()=>expandCard(appId),120);
+}
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyAdJb2p1FO9WZ9eZzO_bxJJYmFB3cjK0Go",
-            authDomain: "password-manager-0710.firebaseapp.com",
-            projectId: "password-manager-0710",
-            storageBucket: "password-manager-0710.firebasestorage.app",
-            messagingSenderId: "737563220775",
-            appId: "1:737563220775:web:83ac28f49f87e1d1192702"
-        };
+// ════════════════════════════════════════════════════
+// SETTINGS
+// ════════════════════════════════════════════════════
+function openSettings(){ updateSyncUI(); openModal('m-settings'); }
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        
-        window.currentUser = null;
+function lockVault(){
+  closeModal('m-settings');
+  PIN=null; VAULT=[];
+  showScreen('s-auth'); startLock();
+}
 
-        // Listen for Auth State Changes
-        onAuthStateChanged(auth, async (user) => {
-            const dashSyncBtn = document.getElementById('dash-sync-btn');
-            const lockSyncBtn = document.getElementById('lock-sync-btn');
-            
-            if (user) {
-                window.currentUser = user;
-                dashSyncBtn.innerHTML = `<img src="${user.photoURL}" alt="User">`;
-                dashSyncBtn.title = "Sign Out";
-                lockSyncBtn.style.display = 'none';
-                await syncFromCloud();
-            } else {
-                window.currentUser = null;
-                dashSyncBtn.innerHTML = `<i class="fab fa-google" style="font-size: 1.2rem;"></i>`;
-                dashSyncBtn.title = "Sign in with Google";
-                lockSyncBtn.style.display = 'inline-block';
-            }
-        });
+// ════════════════════════════════════════════════════
+// CHANGE PIN (from settings)
+// ════════════════════════════════════════════════════
+function openChangePin(){
+  closeModal('m-settings');
+  chPinStep='verify'; chPinBuf=''; chPinTmp='';
+  document.getElementById('chpin-label').textContent='ENTER CURRENT PIN';
+  document.getElementById('chpin-msg').textContent='';
+  updateChPinDots();
+  openModal('m-changepin');
+}
+function cpk(d){
+  if(chPinBuf.length>=4) return;
+  chPinBuf+=d; updateChPinDots();
+  if(chPinBuf.length===4) setTimeout(processChPin,120);
+}
+function cpkDel(){ chPinBuf=chPinBuf.slice(0,-1); updateChPinDots(); document.getElementById('chpin-msg').textContent=''; }
+function updateChPinDots(){ for(let i=0;i<4;i++) document.getElementById('cp'+i).classList.toggle('on',i<chPinBuf.length); }
+function shakeChPin(){
+  const dots=document.querySelector('.chpin-dots');
+  dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake');
+}
+function processChPin(){
+  const p=chPinBuf; chPinBuf=''; updateChPinDots();
+  const msg=document.getElementById('chpin-msg');
+  if(chPinStep==='verify'){
+    if(!verifyPIN(p)){ msg.className='chpin-msg err'; msg.textContent='Incorrect PIN.'; shakeChPin(); return; }
+    chPinStep='new'; document.getElementById('chpin-label').textContent='NEW PIN'; msg.textContent=''; return;
+  }
+  if(chPinStep==='new'){ chPinTmp=p; chPinStep='confirm'; document.getElementById('chpin-label').textContent='CONFIRM NEW PIN'; return; }
+  if(chPinStep==='confirm'){
+    if(p!==chPinTmp){ msg.className='chpin-msg err'; msg.textContent='PINs do not match.'; shakeChPin(); chPinStep='new'; chPinTmp=''; document.getElementById('chpin-label').textContent='NEW PIN'; return; }
+    reEncryptVault(PIN, p); PIN=p;
+    closeModal('m-changepin'); showToast('PIN changed successfully');
+    return;
+  }
+}
 
-        window.toggleCloudSync = async () => {
-            if (window.currentUser) {
-                if(confirm("Sign out of Cloud Sync? Data will remain locally.")) {
-                    await signOut(auth);
-                }
-            } else {
-                const provider = new GoogleAuthProvider();
-                try {
-                    await signInWithPopup(auth, provider);
-                } catch (error) {
-                    console.error("Auth error", error);
-                }
-            }
-        };
+// ════════════════════════════════════════════════════
+// CHANGE Q&A (from settings)
+// ════════════════════════════════════════════════════
+function openChangeQA(){
+  closeModal('m-settings');
+  document.getElementById('cqa-q-select').value='';
+  document.getElementById('cqa-custom-wrap').style.display='none';
+  document.getElementById('cqa-ans').value='';
+  document.getElementById('cqa-ans2').value='';
+  document.getElementById('cqa-msg').textContent='';
+  openModal('m-changeqa');
+}
+function cqaSelectChange(){
+  const v=document.getElementById('cqa-q-select').value;
+  document.getElementById('cqa-custom-wrap').style.display=(v==='custom'?'block':'none');
+}
+function cqaSave(){
+  const sel=document.getElementById('cqa-q-select').value;
+  const custom=document.getElementById('cqa-custom-q').value.trim();
+  const q=(sel==='custom'?custom:sel);
+  const a=document.getElementById('cqa-ans').value.trim();
+  const a2=document.getElementById('cqa-ans2').value.trim();
+  const msg=document.getElementById('cqa-msg');
+  if(!q){ msg.textContent='Please select or enter a question.'; return; }
+  if(!a){ msg.textContent='Please enter an answer.'; return; }
+  if(a.toLowerCase()!==a2.toLowerCase()){ msg.textContent='Answers do not match.'; return; }
+  LS.set('pm_sq',q); LS.set('pm_sa',hashStr(a));
+  closeModal('m-changeqa'); showToast('Security Q&A updated');
+}
 
-        window.pushToCloud = async () => {
-            if(!window.currentUser) return;
-            const data = {
-                kp: localStorage.getItem('pm_kp'),
-                ka: localStorage.getItem('pm_ka'),
-                q: localStorage.getItem('pm_q'),
-                vault: localStorage.getItem('pm_vault') || ""
-            };
-            await setDoc(doc(db, "users", window.currentUser.uid), data);
-        };
+// ════════════════════════════════════════════════════
+// MODAL HELPERS
+// ════════════════════════════════════════════════════
+function openModal(id){ document.getElementById(id).classList.add('on'); }
+function closeModal(id){ document.getElementById(id).classList.remove('on'); }
+function ovClick(e,id){ if(e.target===document.getElementById(id)) closeModal(id); }
+function togglePw(id,btn){
+  const el=document.getElementById(id);
+  el.type=el.type==='password'?'text':'password';
+  btn.style.color=el.type==='text'?'var(--acc)':'var(--txd)';
+}
 
-        async function syncFromCloud() {
-            if(!window.currentUser) return;
-            const docSnap = await getDoc(doc(db, "users", window.currentUser.uid));
-            
-            if(docSnap.exists()) {
-                // User has data in cloud, pull it down to device
-                const cloudData = docSnap.data();
-                localStorage.setItem('pm_kp', cloudData.kp);
-                localStorage.setItem('pm_ka', cloudData.ka);
-                localStorage.setItem('pm_q', cloudData.q);
-                if(cloudData.vault) localStorage.setItem('pm_vault', cloudData.vault);
-                
-                // Refresh active view
-                if(window.sessionKey) {
-                    window.loadVaultData();
-                    window.renderApps();
-                } else {
-                    window.showScreen('lock');
-                }
-            } else {
-                // First time sign-in, push local data to cloud
-                if(localStorage.getItem('pm_kp')) {
-                    if(confirm("Migrate your local encrypted vault to the cloud?")) {
-                        await window.pushToCloud();
-                        alert("Vault synced to Cloud!");
-                    }
-                }
-            }
-        }
-    </script>
+// ════════════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════════════
+let toastTimer=null;
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('on');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('on'),2600);
+}
 
-    <script>
-        let sessionKey = null; 
-        let vaultData = []; 
+// ════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function escH(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escJ(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"'); }
 
-        const screens = {
-            setup: document.getElementById('setup-screen'),
-            lock: document.getElementById('lock-screen'),
-            reset: document.getElementById('reset-screen'),
-            dashboard: document.getElementById('dashboard-screen'),
-            addModal: document.getElementById('add-modal')
-        };
+// Keyboard support
+document.addEventListener('keydown',e=>{
+  const auth=document.getElementById('s-auth');
+  if(auth.classList.contains('on')){
+    if(e.key>='0'&&e.key<='9') pk(e.key);
+    if(e.key==='Backspace') pkDel();
+  }
+});
 
-        function showScreen(screenName) {
-            Object.values(screens).forEach(s => s.classList.remove('active'));
-            screens[screenName].classList.add('active');
-        }
-
-        function init() {
-            if (!localStorage.getItem('pm_kp')) {
-                showScreen('setup');
-            } else {
-                showScreen('lock');
-            }
-        }
-
-        function initializeVault() {
-            const pin = document.getElementById('setup-pin').value;
-            const q = document.getElementById('setup-q').value;
-            const a = document.getElementById('setup-a').value.toLowerCase().trim();
-
-            if(!pin || !q || !a) return alert("All fields required.");
-
-            const masterKey = CryptoJS.lib.WordArray.random(256/8).toString();
-            const kp = CryptoJS.AES.encrypt(masterKey, pin).toString();
-            const ka = CryptoJS.AES.encrypt(masterKey, a).toString();
-
-            localStorage.setItem('pm_q', q);
-            localStorage.setItem('pm_kp', kp);
-            localStorage.setItem('pm_ka', ka);
-            
-            saveVaultData([], masterKey);
-            sessionKey = masterKey;
-            
-            if(window.pushToCloud) window.pushToCloud(); // Sync if logged in
-            
-            renderApps();
-            showScreen('dashboard');
-        }
-
-        function unlockVault() {
-            const pin = document.getElementById('login-pin').value;
-            const kp = localStorage.getItem('pm_kp');
-            
-            try {
-                const bytes = CryptoJS.AES.decrypt(kp, pin);
-                const decryptedKey = bytes.toString(CryptoJS.enc.Utf8);
-                
-                if (decryptedKey) {
-                    sessionKey = decryptedKey;
-                    loadVaultData();
-                    showScreen('dashboard');
-                    document.getElementById('login-pin').value = '';
-                } else {
-                    alert("Incorrect PIN");
-                }
-            } catch(e) { alert("Incorrect PIN"); }
-        }
-
-        function showLock() { showScreen('lock'); }
-        
-        function showReset() {
-            document.getElementById('reset-question-display').innerText = localStorage.getItem('pm_q');
-            showScreen('reset');
-        }
-
-        function resetPIN() {
-            const answer = document.getElementById('reset-answer').value.toLowerCase().trim();
-            const newPin = document.getElementById('reset-new-pin').value;
-            const ka = localStorage.getItem('pm_ka');
-
-            try {
-                const bytes = CryptoJS.AES.decrypt(ka, answer);
-                const recoveredKey = bytes.toString(CryptoJS.enc.Utf8);
-
-                if (recoveredKey && newPin) {
-                    const newKp = CryptoJS.AES.encrypt(recoveredKey, newPin).toString();
-                    localStorage.setItem('pm_kp', newKp);
-                    
-                    if(window.pushToCloud) window.pushToCloud(); // Sync change
-                    
-                    alert("PIN successfully reset!");
-                    showScreen('lock');
-                    document.getElementById('reset-answer').value = '';
-                    document.getElementById('reset-new-pin').value = '';
-                } else {
-                    alert("Incorrect Answer or invalid new PIN");
-                }
-            } catch(e) { alert("Incorrect Answer"); }
-        }
-
-        function loadVaultData() {
-            const encryptedData = localStorage.getItem('pm_vault');
-            if (encryptedData) {
-                const bytes = CryptoJS.AES.decrypt(encryptedData, sessionKey);
-                const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-                vaultData = decrypted ? JSON.parse(decrypted) : [];
-            } else {
-                vaultData = [];
-            }
-        }
-
-        function saveVaultData(data, key = sessionKey) {
-            const encryptedData = CryptoJS.AES.encrypt(JSON.stringify(data), key).toString();
-            localStorage.setItem('pm_vault', encryptedData);
-            if(window.pushToCloud) window.pushToCloud(); // Trigger background cloud sync
-        }
-
-        function renderApps() {
-            const container = document.getElementById('apps-container');
-            const search = document.getElementById('search-bar').value.toLowerCase();
-            container.innerHTML = '';
-
-            const grouped = {};
-            vaultData.forEach((item, index) => {
-                if(!item.app.toLowerCase().includes(search)) return;
-                if(!grouped[item.app]) grouped[item.app] = [];
-                grouped[item.app].push({...item, id: index});
-            });
-
-            for (const [appName, creds] of Object.entries(grouped)) {
-                let html = `
-                <div class="glass-panel app-card" onclick="this.classList.toggle('open')">
-                    <div class="app-header">
-                        <span>${appName}</span>
-                        <i class="fas fa-chevron-down" style="font-size: 0.8rem; color: var(--text-muted);"></i>
-                    </div>
-                    <div class="cred-list" onclick="event.stopPropagation()">`;
-                
-                creds.forEach(cred => {
-                    html += `
-                        <div class="cred-row">
-                            <div class="cred-details">
-                                <span style="font-weight:600;">${cred.user}</span>
-                                <div style="display:flex; align-items:center; gap:10px;">
-                                    <span class="pw-mask" data-pw="${cred.pass}">••••••••</span>
-                                    <i class="fas fa-eye link" onclick="togglePassword(this)"></i>
-                                </div>
-                            </div>
-                            <div class="cred-actions">
-                                <button class="icon-btn" onclick="copyText('${cred.user}')"><i class="fas fa-user"></i></button>
-                                <button class="icon-btn" onclick="copyText('${cred.pass}')"><i class="fas fa-key"></i></button>
-                                <button class="icon-btn" onclick="deleteEntry(${cred.id})" style="border-color: #C1121F; color: #C1121F;"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </div>`;
-                });
-
-                html += `</div></div>`;
-                container.innerHTML += html;
-            }
-        }
-
-        function showAddModal() { screens.addModal.style.display = 'block'; }
-        function closeModal() { 
-            screens.addModal.style.display = 'none'; 
-            document.getElementById('entry-app').value = '';
-            document.getElementById('entry-user').value = '';
-            document.getElementById('entry-pass').value = '';
-        }
-
-        function saveEntry() {
-            const app = document.getElementById('entry-app').value;
-            const user = document.getElementById('entry-user').value;
-            const pass = document.getElementById('entry-pass').value;
-
-            if(app && user && pass) {
-                vaultData.push({app, user, pass});
-                saveVaultData(vaultData);
-                renderApps();
-                closeModal();
-            }
-        }
-
-        function deleteEntry(id) {
-            if(confirm("Delete this credential?")) {
-                vaultData.splice(id, 1);
-                saveVaultData(vaultData);
-                renderApps();
-            }
-        }
-
-        function togglePassword(icon) {
-            const span = icon.previousElementSibling;
-            if (span.innerText === '••••••••') {
-                span.innerText = span.getAttribute('data-pw');
-                icon.classList.replace('fa-eye', 'fa-eye-slash');
-            } else {
-                span.innerText = '••••••••';
-                icon.classList.replace('fa-eye-slash', 'fa-eye');
-            }
-        }
-
-        function copyText(text) {
-            navigator.clipboard.writeText(text);
-        }
-
-        window.onload = init;
-
-    </script>
+// ════════════════════════════════════════════════════
+// START
+// ════════════════════════════════════════════════════
+init();
+</script>
 </body>
 </html>
