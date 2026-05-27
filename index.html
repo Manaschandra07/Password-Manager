@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Manager</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon.jpg">
+    <meta name="theme-color" content="#0D1B2A">
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #0D1B2A;
+            --card-border: #023E8A;
+            --accent: #1E6091;
+            --text-main: #FFFFFF;
+            --text-muted: #8E9BAE;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .glass-panel {
+            background: rgba(2, 62, 138, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(2, 62, 138, 0.4);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+        }
+
+        .glow-border {
+            border: 1px solid var(--accent);
+            box-shadow: 0 0 10px rgba(30, 96, 145, 0.3);
+        }
+
+        .screen { display: none; padding: 20px; max-width: 600px; margin: 0 auto; width: 100%; }
+        .screen.active { display: block; animation: fadeIn 0.4s ease-out; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        input {
+            width: 100%; padding: 12px; margin-bottom: 15px;
+            background: rgba(0, 0, 0, 0.3); border: 1px solid var(--card-border);
+            color: white; border-radius: 8px; outline: none; transition: 0.3s;
+        }
+        input:focus { border-color: var(--accent); box-shadow: 0 0 8px rgba(30, 96, 145, 0.5); }
+
+        button {
+            width: 100%; padding: 12px; border: none; border-radius: 8px;
+            background: linear-gradient(135deg, var(--card-border), var(--accent));
+            color: white; font-weight: 600; cursor: pointer; transition: 0.3s;
+        }
+        button:hover { filter: brightness(1.2); box-shadow: 0 0 15px rgba(30, 96, 145, 0.6); }
+
+        .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .topbar h1 { font-size: 1.5rem; letter-spacing: 1px; text-shadow: 0 0 10px var(--accent); }
+        
+        .app-card { margin-bottom: 15px; padding: 15px; cursor: pointer; transition: 0.3s; }
+        .app-card:hover { border-color: var(--accent); }
+        .app-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 1.1rem; }
+        
+        .cred-list { display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
+        .app-card.open .cred-list { display: block; }
+        
+        .cred-row {
+            display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;
+            background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;
+        }
+        .cred-details { display: flex; justify-content: space-between; align-items: center; }
+        .cred-actions { display: flex; gap: 10px; margin-top: 5px; }
+        .icon-btn { 
+            background: transparent; width: auto; padding: 5px 10px; color: var(--text-muted); 
+            border: 1px solid var(--text-muted); font-size: 0.9rem; 
+            display: flex; align-items: center; justify-content: center;
+        }
+        .icon-btn:hover { color: white; border-color: white; background: rgba(255,255,255,0.1); box-shadow: none;}
+        .icon-btn img { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--accent); }
+
+        .fab {
+            position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px;
+            border-radius: 50%; font-size: 24px; display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 0 20px var(--accent); z-index: 100;
+        }
+
+        .text-center { text-align: center; }
+        .mt-4 { margin-top: 1rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .link { color: var(--accent); cursor: pointer; font-size: 0.9rem; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen" class="screen">
+        <div class="glass-panel glow-border" style="padding: 30px; margin-top: 10vh;">
+            <h2 class="text-center mb-4"><i class="fas fa-shield-alt"></i> Initialize Vault</h2>
+            <p class="text-center text-muted mb-4" style="font-size: 0.9rem;">Create a Master PIN to encrypt your data. Set a security question for recovery.</p>
+            
+            <input type="password" id="setup-pin" placeholder="Enter Master PIN (e.g., 6 digits)">
+            <input type="text" id="setup-q" placeholder="Security Question (e.g., First Pet?)">
+            <input type="password" id="setup-a" placeholder="Security Answer">
+            <button onclick="initializeVault()">Secure Vault</button>
+        </div>
+    </div>
+
+    <div id="lock-screen" class="screen">
+        <div class="glass-panel glow-border" style="padding: 30px; text-align: center; margin-top: 20vh;">
+            <i class="fas fa-cube" style="font-size: 3rem; color: var(--accent); margin-bottom: 20px; text-shadow: 0 0 15px var(--accent);"></i>
+            <h2 class="mb-4">Vault Locked</h2>
+            <input type="password" id="login-pin" placeholder="Enter Master PIN">
+            <button onclick="unlockVault()">Decrypt & Enter</button>
+            <p class="mt-4 link" onclick="showReset()">Forgot PIN?</p>
+            
+            <button id="lock-sync-btn" onclick="toggleCloudSync()" style="margin-top:20px; background:transparent; border:1px solid var(--text-muted); color:var(--text-muted); display:none;">
+                <i class="fab fa-google"></i> Sign In to Sync
+            </button>
+        </div>
+    </div>
+
+    <div id="reset-screen" class="screen">
+        <div class="glass-panel glow-border" style="padding: 30px; margin-top: 10vh;">
+            <h2 class="mb-4 text-center">Emergency Override</h2>
+            <p id="reset-question-display" class="mb-4 text-center text-muted"></p>
+            <input type="password" id="reset-answer" placeholder="Enter Answer">
+            <input type="password" id="reset-new-pin" placeholder="Enter New Master PIN">
+            <button onclick="resetPIN()">Verify & Reset</button>
+            <p class="mt-4 link text-center" onclick="showLock()">Cancel</p>
+        </div>
+    </div>
+
+    <div id="dashboard-screen" class="screen">
+        <div class="topbar">
+            <h1><i class="fas fa-cube"></i> Vault</h1>
+            <button class="icon-btn" onclick="toggleCloudSync()" id="dash-sync-btn" style="border:none;" title="Sign in with Google">
+                <i class="fab fa-google" style="font-size: 1.2rem;"></i>
+            </button>
+        </div>
+
+        <input type="text" id="search-bar" placeholder="Search apps..." oninput="renderApps()">
+
+        <div id="apps-container"></div>
+
+        <button class="fab" onclick="showAddModal()"><i class="fas fa-plus"></i></button>
+    </div>
+
+    <div id="add-modal" class="screen" style="position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:200;">
+        <div class="glass-panel glow-border" style="padding: 30px; margin-top: 15vh;">
+            <h2 class="mb-4">Add Credential</h2>
+            <input type="text" id="entry-app" placeholder="App Name (e.g., Instagram)">
+            <input type="text" id="entry-user" placeholder="Username / Email">
+            <input type="password" id="entry-pass" placeholder="Password">
+            <button onclick="saveEntry()" class="mb-4">Save to Vault</button>
+            <button onclick="closeModal()" style="background: transparent; border: 1px solid var(--text-muted);">Cancel</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAdJb2p1FO9WZ9eZzO_bxJJYmFB3cjK0Go",
+            authDomain: "password-manager-0710.firebaseapp.com",
+            projectId: "password-manager-0710",
+            storageBucket: "password-manager-0710.firebasestorage.app",
+            messagingSenderId: "737563220775",
+            appId: "1:737563220775:web:83ac28f49f87e1d1192702"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        window.currentUser = null;
+
+        // Listen for Auth State Changes
+        onAuthStateChanged(auth, async (user) => {
+            const dashSyncBtn = document.getElementById('dash-sync-btn');
+            const lockSyncBtn = document.getElementById('lock-sync-btn');
+            
+            if (user) {
+                window.currentUser = user;
+                dashSyncBtn.innerHTML = `<img src="${user.photoURL}" alt="User">`;
+                dashSyncBtn.title = "Sign Out";
+                lockSyncBtn.style.display = 'none';
+                await syncFromCloud();
+            } else {
+                window.currentUser = null;
+                dashSyncBtn.innerHTML = `<i class="fab fa-google" style="font-size: 1.2rem;"></i>`;
+                dashSyncBtn.title = "Sign in with Google";
+                lockSyncBtn.style.display = 'inline-block';
+            }
+        });
+
+        window.toggleCloudSync = async () => {
+            if (window.currentUser) {
+                if(confirm("Sign out of Cloud Sync? Data will remain locally.")) {
+                    await signOut(auth);
+                }
+            } else {
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (error) {
+                    console.error("Auth error", error);
+                }
+            }
+        };
+
+        window.pushToCloud = async () => {
+            if(!window.currentUser) return;
+            const data = {
+                kp: localStorage.getItem('pm_kp'),
+                ka: localStorage.getItem('pm_ka'),
+                q: localStorage.getItem('pm_q'),
+                vault: localStorage.getItem('pm_vault') || ""
+            };
+            await setDoc(doc(db, "users", window.currentUser.uid), data);
+        };
+
+        async function syncFromCloud() {
+            if(!window.currentUser) return;
+            const docSnap = await getDoc(doc(db, "users", window.currentUser.uid));
+            
+            if(docSnap.exists()) {
+                // User has data in cloud, pull it down to device
+                const cloudData = docSnap.data();
+                localStorage.setItem('pm_kp', cloudData.kp);
+                localStorage.setItem('pm_ka', cloudData.ka);
+                localStorage.setItem('pm_q', cloudData.q);
+                if(cloudData.vault) localStorage.setItem('pm_vault', cloudData.vault);
+                
+                // Refresh active view
+                if(window.sessionKey) {
+                    window.loadVaultData();
+                    window.renderApps();
+                } else {
+                    window.showScreen('lock');
+                }
+            } else {
+                // First time sign-in, push local data to cloud
+                if(localStorage.getItem('pm_kp')) {
+                    if(confirm("Migrate your local encrypted vault to the cloud?")) {
+                        await window.pushToCloud();
+                        alert("Vault synced to Cloud!");
+                    }
+                }
+            }
+        }
+    </script>
+
+    <script>
+        let sessionKey = null; 
+        let vaultData = []; 
+
+        const screens = {
+            setup: document.getElementById('setup-screen'),
+            lock: document.getElementById('lock-screen'),
+            reset: document.getElementById('reset-screen'),
+            dashboard: document.getElementById('dashboard-screen'),
+            addModal: document.getElementById('add-modal')
+        };
+
+        function showScreen(screenName) {
+            Object.values(screens).forEach(s => s.classList.remove('active'));
+            screens[screenName].classList.add('active');
+        }
+
+        function init() {
+            if (!localStorage.getItem('pm_kp')) {
+                showScreen('setup');
+            } else {
+                showScreen('lock');
+            }
+        }
+
+        function initializeVault() {
+            const pin = document.getElementById('setup-pin').value;
+            const q = document.getElementById('setup-q').value;
+            const a = document.getElementById('setup-a').value.toLowerCase().trim();
+
+            if(!pin || !q || !a) return alert("All fields required.");
+
+            const masterKey = CryptoJS.lib.WordArray.random(256/8).toString();
+            const kp = CryptoJS.AES.encrypt(masterKey, pin).toString();
+            const ka = CryptoJS.AES.encrypt(masterKey, a).toString();
+
+            localStorage.setItem('pm_q', q);
+            localStorage.setItem('pm_kp', kp);
+            localStorage.setItem('pm_ka', ka);
+            
+            saveVaultData([], masterKey);
+            sessionKey = masterKey;
+            
+            if(window.pushToCloud) window.pushToCloud(); // Sync if logged in
+            
+            renderApps();
+            showScreen('dashboard');
+        }
+
+        function unlockVault() {
+            const pin = document.getElementById('login-pin').value;
+            const kp = localStorage.getItem('pm_kp');
+            
+            try {
+                const bytes = CryptoJS.AES.decrypt(kp, pin);
+                const decryptedKey = bytes.toString(CryptoJS.enc.Utf8);
+                
+                if (decryptedKey) {
+                    sessionKey = decryptedKey;
+                    loadVaultData();
+                    showScreen('dashboard');
+                    document.getElementById('login-pin').value = '';
+                } else {
+                    alert("Incorrect PIN");
+                }
+            } catch(e) { alert("Incorrect PIN"); }
+        }
+
+        function showLock() { showScreen('lock'); }
+        
+        function showReset() {
+            document.getElementById('reset-question-display').innerText = localStorage.getItem('pm_q');
+            showScreen('reset');
+        }
+
+        function resetPIN() {
+            const answer = document.getElementById('reset-answer').value.toLowerCase().trim();
+            const newPin = document.getElementById('reset-new-pin').value;
+            const ka = localStorage.getItem('pm_ka');
+
+            try {
+                const bytes = CryptoJS.AES.decrypt(ka, answer);
+                const recoveredKey = bytes.toString(CryptoJS.enc.Utf8);
+
+                if (recoveredKey && newPin) {
+                    const newKp = CryptoJS.AES.encrypt(recoveredKey, newPin).toString();
+                    localStorage.setItem('pm_kp', newKp);
+                    
+                    if(window.pushToCloud) window.pushToCloud(); // Sync change
+                    
+                    alert("PIN successfully reset!");
+                    showScreen('lock');
+                    document.getElementById('reset-answer').value = '';
+                    document.getElementById('reset-new-pin').value = '';
+                } else {
+                    alert("Incorrect Answer or invalid new PIN");
+                }
+            } catch(e) { alert("Incorrect Answer"); }
+        }
+
+        function loadVaultData() {
+            const encryptedData = localStorage.getItem('pm_vault');
+            if (encryptedData) {
+                const bytes = CryptoJS.AES.decrypt(encryptedData, sessionKey);
+                const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+                vaultData = decrypted ? JSON.parse(decrypted) : [];
+            } else {
+                vaultData = [];
+            }
+        }
+
+        function saveVaultData(data, key = sessionKey) {
+            const encryptedData = CryptoJS.AES.encrypt(JSON.stringify(data), key).toString();
+            localStorage.setItem('pm_vault', encryptedData);
+            if(window.pushToCloud) window.pushToCloud(); // Trigger background cloud sync
+        }
+
+        function renderApps() {
+            const container = document.getElementById('apps-container');
+            const search = document.getElementById('search-bar').value.toLowerCase();
+            container.innerHTML = '';
+
+            const grouped = {};
+            vaultData.forEach((item, index) => {
+                if(!item.app.toLowerCase().includes(search)) return;
+                if(!grouped[item.app]) grouped[item.app] = [];
+                grouped[item.app].push({...item, id: index});
+            });
+
+            for (const [appName, creds] of Object.entries(grouped)) {
+                let html = `
+                <div class="glass-panel app-card" onclick="this.classList.toggle('open')">
+                    <div class="app-header">
+                        <span>${appName}</span>
+                        <i class="fas fa-chevron-down" style="font-size: 0.8rem; color: var(--text-muted);"></i>
+                    </div>
+                    <div class="cred-list" onclick="event.stopPropagation()">`;
+                
+                creds.forEach(cred => {
+                    html += `
+                        <div class="cred-row">
+                            <div class="cred-details">
+                                <span style="font-weight:600;">${cred.user}</span>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <span class="pw-mask" data-pw="${cred.pass}">••••••••</span>
+                                    <i class="fas fa-eye link" onclick="togglePassword(this)"></i>
+                                </div>
+                            </div>
+                            <div class="cred-actions">
+                                <button class="icon-btn" onclick="copyText('${cred.user}')"><i class="fas fa-user"></i></button>
+                                <button class="icon-btn" onclick="copyText('${cred.pass}')"><i class="fas fa-key"></i></button>
+                                <button class="icon-btn" onclick="deleteEntry(${cred.id})" style="border-color: #C1121F; color: #C1121F;"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>`;
+                });
+
+                html += `</div></div>`;
+                container.innerHTML += html;
+            }
+        }
+
+        function showAddModal() { screens.addModal.style.display = 'block'; }
+        function closeModal() { 
+            screens.addModal.style.display = 'none'; 
+            document.getElementById('entry-app').value = '';
+            document.getElementById('entry-user').value = '';
+            document.getElementById('entry-pass').value = '';
+        }
+
+        function saveEntry() {
+            const app = document.getElementById('entry-app').value;
+            const user = document.getElementById('entry-user').value;
+            const pass = document.getElementById('entry-pass').value;
+
+            if(app && user && pass) {
+                vaultData.push({app, user, pass});
+                saveVaultData(vaultData);
+                renderApps();
+                closeModal();
+            }
+        }
+
+        function deleteEntry(id) {
+            if(confirm("Delete this credential?")) {
+                vaultData.splice(id, 1);
+                saveVaultData(vaultData);
+                renderApps();
+            }
+        }
+
+        function togglePassword(icon) {
+            const span = icon.previousElementSibling;
+            if (span.innerText === '••••••••') {
+                span.innerText = span.getAttribute('data-pw');
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                span.innerText = '••••••••';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        }
+
+        function copyText(text) {
+            navigator.clipboard.writeText(text);
+        }
+
+        window.onload = init;
+
+    </script>
+</body>
+</html>
